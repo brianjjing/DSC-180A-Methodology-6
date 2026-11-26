@@ -117,7 +117,28 @@ pipeline stays untransformed.
 
 ## Exercise 5: ridge vs persistence
 
-_TODO_
+Ridge is not worth deploying over "yesterday again" as it stands. With
+`cnt_roll_7_std`, ridge's test R² lead over persistence grows from 0.073 to
+0.126 (0.6356 vs 0.5099), but on MAE the two still tie (840.3 vs 840.1 rides a
+day). The R² lead comes from a few days: ridge has 14% lower RMSE (1051 vs
+1219) and misses by more than 2,000 rides on 10 days instead of 17. On the
+20% of test days with the largest day-to-day swing, ridge's error is about
+half of persistence's (MAE 1213 vs 2281). On a typical day ridge is worse:
+its median error is 743 against persistence's 507, it is closer on only
+43.5% of days, and on the calmer 80% of days its MAE is 747 against 477.
+It also under-predicts H2 2012 by 372 rides a day on average, because a
+model fit on 2011 lags the growth trend; persistence is almost unbiased
+(+16). Ridge's wins on big-swing days are also not available in deployment.
+It predicts those swings from same-day observed weather (`temp`, `atemp`,
+`hum`, `windspeed`, `weather_severity`), which a forecaster would only have
+as a forecast. Refit without those five columns, ridge's validation MAE is
+894.6 against persistence's 900.6. (That check used validation only; test
+was not touched again.) So nearly all of ridge's practical edge is perfect
+knowledge of the day's weather. Persistence needs no model, no features and
+no retraining, and with the same MAE and a smaller typical error it is the
+safer choice. Ridge would earn deployment only if, retrained on forecast
+weather and corrected for the level bias, it still beat persistence on
+validation MAE.
 
 ## Attribution
 

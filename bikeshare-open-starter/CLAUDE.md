@@ -9,6 +9,9 @@ rides) from calendar, weather, and lagged-demand features.
 - `make train` - fit models, write `reports/metrics.json`
 - `make test` - pytest; run this before claiming anything works
 - `make all` - the three pipeline stages in order
+- `/new-feature <idea>` - add one feature with its leakage test first
+- `/seed-fault <fault>` - break the pipeline on purpose, record the real
+  test and hook output in `docs/SEEDED_FAULTS.md`, then restore
 
 ## Non-negotiable rules
 - **Never** put `casual` or `registered` in a feature set:
@@ -23,6 +26,14 @@ rides) from calendar, weather, and lagged-demand features.
 - Report the mean baseline **and** the persistence baseline (yesterday's
   count) alongside every model score. A negative R^2 is a finding, not a bug
   to hide.
+- `reports/metrics.json` is always the untransformed pipeline. Target
+  transforms run only behind `src.train --target-transform`, and its
+  `--touch-test` has already been used once (Exercise 4); do not rerun it.
+- **Never** write `data/raw/` from Bash (`cp`, `mv`, `>`). The deny rules
+  and the hook only cover Edit/Write, and no test checks the file's hash
+  (`docs/SEEDED_FAULTS.md`, fault 4).
+- Keep the `raise` in `encode_weather`. No test covers it; without it an
+  unseen weather label silently becomes NaN and is dropped (fault 3).
 
 ## Style
 - Standard library, pandas, scikit-learn only. No new dependencies
