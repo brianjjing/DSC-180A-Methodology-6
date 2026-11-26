@@ -14,11 +14,14 @@ nothing worth reporting. The booster is there because it fails, and the
 reason it fails is the headline result.
 
 Run: python -m src.train
+     python -m src.train --target-transform NAME [--touch-test]   (Exercise 4)
 """
+import argparse
 import json
 
+import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
@@ -86,8 +89,71 @@ def fit_and_score() -> dict:
     return results
 
 
+# --- Exercise 4: target transforms, behind --target-transform ------------
+# The booster fails because most test days exceed every count it saw in
+# 2011, and a tree cannot predict outside its training range. Each
+# transform is (forward, inverse) of y given X. The level columns used to
+# invert (cnt_lag_1, cnt_roll_7) are known at prediction time.
+# reports/metrics.json is always the untransformed pipeline.
+TRANSFORMS = {
+    "log": (lambda y, X: np.log(y), lambda z, X: np.exp(z)),
+    "diff_lag_1": (lambda y, X: y - X["cnt_lag_1"].to_numpy(),
+                   lambda z, X: z + X["cnt_lag_1"].to_numpy()),
+    "diff_roll_7": (lambda y, X: y - X["cnt_roll_7"].to_numpy(),
+                    lambda z, X: z + X["cnt_roll_7"].to_numpy()),
+    "ratio_roll_7": (lambda y, X: y / X["cnt_roll_7"].to_numpy(),
+                     lambda z, X: z * X["cnt_roll_7"].to_numpy()),
+}
+
+
+class TargetTransformed(BaseEstimator, RegressorMixin):
+    """Fit `estimator` on TRANSFORMS[transform] of y; invert on predict."""
+
+    def __init__(self, estimator=None, transform: str = "log"):
+        self.estimator = estimator
+        self.transform = transform
+
+    def fit(self, X, y):
+        forward, _ = TRANSFORMS[self.transform]
+        self.estimator_ = clone(self.estimator).fit(X, forward(np.asarray(y, dtype=float), X))
+        return self
+
+    def predict(self, X):
+        _, inverse = TRANSFORMS[self.transform]
+        return np.asarray(inverse(self.estimator_.predict(X), X), dtype=float)
+
+
+def transformed_scores(transform: str, touch_test: bool) -> dict:
+    """Ridge and hgb under `transform`. Validation only unless touch_test."""
+    df = pd.read_parquet(PROCESSED)
+    cols = feature_columns(df)
+    train, valid, test = temporal_split(df)
+    splits = [("valid", valid)] + ([("test", test)] if touch_test else [])
+    out = {"transform": transform}
+    for name in ("ridge", "hgb"):
+        model = TargetTransformed(MODELS[name], transform).fit(train[cols], train[TARGET])
+        out[name] = {
+            split: {
+                "r2": round(float(r2_score(part[TARGET], model.predict(part[cols]))), 4),
+                "mae": round(float(mean_absolute_error(part[TARGET], model.predict(part[cols]))), 1),
+            }
+            for split, part in splits
+        }
+    return out
+
+
 if __name__ == "__main__":
-    res = fit_and_score()
-    METRICS.parent.mkdir(parents=True, exist_ok=True)
-    METRICS.write_text(json.dumps(res, indent=2))
-    print(json.dumps({k: v for k, v in res.items() if k != "features"}, indent=2))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--target-transform", choices=sorted(TRANSFORMS))
+    ap.add_argument("--touch-test", action="store_true",
+                    help="also score the test set; Exercise 4 does this once")
+    ns = ap.parse_args()
+    if ns.touch_test and not ns.target_transform:
+        ap.error("--touch-test needs --target-transform")
+    if ns.target_transform:
+        print(json.dumps(transformed_scores(ns.target_transform, ns.touch_test), indent=2))
+    else:
+        res = fit_and_score()
+        METRICS.parent.mkdir(parents=True, exist_ok=True)
+        METRICS.write_text(json.dumps(res, indent=2))
+        print(json.dumps({k: v for k, v in res.items() if k != "features"}, indent=2))
