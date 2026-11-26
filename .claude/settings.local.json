@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make all *)",
+      "Bash(make test *)",
+      "Bash(git -C .. status --short)",
+      "Bash(PYTHONPATH=. python *)",
+      "Bash(tee /private/tmp/claude-501/-Users-brian-Documents-UCSD-Y3Q1-bikeshare-open/be9ad719-7304-4710-a507-e1e486192b18/scratchpad/failing_run.txt)",
+      "Skill(new-feature)",
+      "Bash(python -c ' *)",
+      "Bash(make features *)",
+      "Bash(make train *)"
+    ]
+  }
+}

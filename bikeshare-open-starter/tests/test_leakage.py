@@ -57,6 +57,16 @@ def test_rolling_mean_excludes_today(feats):
         assert feats.set_index("dteday").cnt_roll_7[date] == pytest.approx(expected)
 
 
+def test_rolling_std_excludes_today(feats):
+    """cnt_roll_7_std on 2012-03-15 is the sample std of cnt on 2012-03-08..14,
+    hand-computed from strictly earlier calendar days."""
+    import statistics
+    by_date = feats.set_index("dteday")
+    date = pd.Timestamp("2012-03-15")
+    window = [by_date[TARGET][date - pd.Timedelta(days=k)] for k in range(1, 8)]
+    assert by_date.cnt_roll_7_std[date] == pytest.approx(statistics.stdev(window))
+
+
 def test_no_missing_values(feats):
     assert feats[feature_columns(feats)].isna().sum().sum() == 0
 
