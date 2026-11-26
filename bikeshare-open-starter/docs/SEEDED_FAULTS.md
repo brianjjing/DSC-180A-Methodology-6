@@ -271,6 +271,56 @@ ValueError: unmapped weather labels: ['STORM']
 
 Turns to fix: 1. One edit restored the two lines, then `make test` printed `15 passed in 1.23s`. The agent only fixed this because it had seeded it. No test and no hook output pointed at it. The suite misses this fault because the current CSV has only GOOD, MISTY and BAD, so `raise` never runs, and no test sends `encode_weather` an unseen label. A test that would catch it: `with pytest.raises(ValueError): encode_weather(pd.Series(["STORM"]))`.
 
+**Follow-up: the missing test, added.** `tests/test_leakage.py::test_unseen_weather_label_raises` now sends `encode_weather` an unseen label and expects `ValueError`. The suite went from 15 to 17 tests, because the unclassified-column test was added to `tests/test_contract.py` at the same time. The same fault was then seeded again, and this time both the tests and the hook catch it:
+
+```
+$ make test
+python -m pytest tests/ -q
+.....F...........                                                        [100%]
+=================================== FAILURES ===================================
+_______________________ test_unseen_weather_label_raises _______________________
+
+    def test_unseen_weather_label_raises():
+        """Without the raise, an unseen label becomes NaN and dropna() deletes
+        the day with no warning. The data has only GOOD / MISTY / BAD, so this
+        is the only test that reaches the raise (docs/SEEDED_FAULTS.md, fault 3)."""
+>       with pytest.raises(ValueError, match="unmapped weather labels"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_leakage.py:24: Failed
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_unseen_weather_label_raises - Failed: DID ...
+1 failed, 16 passed in 1.12s
+make: *** [test] Error 1
+[make exit: 2]
+```
+
+Hook stderr (exit 2):
+
+```
+Leakage tests failed after editing /Users/brian/Documents/UCSD/Y3Q1/bikeshare-open/bikeshare-open-starter/src/features.py:
+F........                                                                [100%]
+=================================== FAILURES ===================================
+_______________________ test_unseen_weather_label_raises _______________________
+
+    def test_unseen_weather_label_raises():
+        """Without the raise, an unseen label becomes NaN and dropna() deletes
+        the day with no warning. The data has only GOOD / MISTY / BAD, so this
+        is the only test that reaches the raise (docs/SEEDED_FAULTS.md, fault 3)."""
+>       with pytest.raises(ValueError, match="unmapped weather labels"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_leakage.py:24: Failed
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_unseen_weather_label_raises - Failed: DID ...
+1 failed, 8 passed in 0.28s
+[hook exit: 2]
+```
+
+After the restore, `make test` printed `17 passed in 1.50s`. The `make test` outputs for faults 1, 2 and 4 above come from the earlier 15-test suite.
+
 ### Fault 4: a Bash `cp` into `data/raw/`, which the hook cannot see
 
 What happened: a copy of the raw CSV with every H2-2012 `casual`, `registered` and `cnt` doubled was copied over the real file from Bash. Doubling all three keeps `casual + registered == cnt` true, and the row count stays 728. Python's `csv` writer also dropped the quotes around text fields, so every line shows up in the diff.

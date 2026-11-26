@@ -8,13 +8,21 @@ import pandas as pd
 import pytest
 
 from src.config import FORBIDDEN, TARGET
-from src.features import build_features, feature_columns
+from src.features import build_features, encode_weather, feature_columns
 from src.ingest import load_raw
 
 
 @pytest.fixture(scope="module")
 def feats():
     return build_features(load_raw())
+
+
+def test_unseen_weather_label_raises():
+    """Without the raise, an unseen label becomes NaN and dropna() deletes
+    the day with no warning. The data has only GOOD / MISTY / BAD, so this
+    is the only test that reaches the raise (docs/SEEDED_FAULTS.md, fault 3)."""
+    with pytest.raises(ValueError, match="unmapped weather labels"):
+        encode_weather(pd.Series(["GOOD", "STORM"]))
 
 
 def test_leakage_identity_holds(feats):

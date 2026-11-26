@@ -32,8 +32,8 @@ rides) from calendar, weather, and lagged-demand features.
 - **Never** write `data/raw/` from Bash (`cp`, `mv`, `>`). The deny rules
   and the hook only cover Edit/Write, and no test checks the file's hash
   (`docs/SEEDED_FAULTS.md`, fault 4).
-- Keep the `raise` in `encode_weather`. No test covers it; without it an
-  unseen weather label silently becomes NaN and is dropped (fault 3).
+- A new raw column must go into a set in `src/config.py`, with a reason,
+  before it can reach the model; `tests/test_contract.py` fails until it does.
 
 ## Style
 - Standard library, pandas, scikit-learn only. No new dependencies

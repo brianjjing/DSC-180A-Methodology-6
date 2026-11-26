@@ -142,4 +142,54 @@ validation MAE.
 
 ## Attribution
 
-_TODO_
+Model: Claude Opus 5.5, hosted by Anthropic (model size is not published).
+I did switch models. I started with `qwen3.5:9b` via Ollama with a 64k
+context (`bikeshare-coder`), but on an 18 GB M3 Pro laptop it took about ten
+minutes per turn, and its draft of Exercise 2 described test output instead
+of pasting it, so I discarded that draft.
+
+- **Exercise 1:** Claude Code running Claude Opus 5.5.
+- **Exercises 2–5 and the later tests:** Claude Opus 5.5 as the agent in
+  Cursor.
+- **Audit runs:** `/leakage-auditor` and `agent/audit.py` ran on
+  `claude-opus-5-5` through Claude Code and the Agent SDK.
+
+All numbers in this report come from scripts in this repository.
+
+**What the agent generated:**
+
+- `src/features.py`: the `cnt_roll_7_std` feature. Screening the 17
+  candidate features was also agent work.
+- `tests/test_leakage.py`: `test_rolling_std_excludes_today` and
+  `test_unseen_weather_label_raises`.
+- `tests/test_contract.py`: `test_every_raw_column_is_classified`.
+- `src/config.py`: the `RAW_FEATURE_COLS` and `SOURCE_COLS` sets.
+- `src/train.py`: `TRANSFORMS`, `TargetTransformed`, `transformed_scores`,
+  and the `--target-transform` / `--touch-test` flags.
+- `.claude/skills/seed-fault/`: `SKILL.md` and `run_hook.sh`.
+- The fault runs and write-up in `docs/SEEDED_FAULTS.md`.
+- The audit runs, `docs/AUDIT.md` and `reports/audit.jsonl`.
+- The Exercise 5 error breakdown.
+- The prose of this report, the edits to `CLAUDE.md`, and the lines in
+  `docs/DECISIONS.md`.
+
+**The decisions that were mine** (each one traces to `docs/DECISIONS.md`):
+
+- **What to predict:** daily total `cnt` for day d, using information known
+  by the end of d-1 plus that day's weather. (The "Target is daily total
+  `cnt`" line.)
+- **What counts as leakage:** `casual` and `registered`, because they sum to
+  `cnt`. `cnt_2d_bfr` and the time indexes are excluded for different
+  reasons: we can't verify how the first was aligned, and the second invite
+  a bad extrapolation. (The three "Exclude" lines.)
+- **How to split:** by date, with 2011 for training, H1 2012 for validation
+  and H2 2012 for test. Each test-set use happens once, after the decision
+  it informs. (The "Split" line.)
+- **Which baselines:** the mean and persistence baselines next to every
+  model. (The "Report mean and persistence" line.)
+- **Whether to keep my feature:** screen the candidates on validation only,
+  and keep `cnt_roll_7_std` for ridge even though it hurts hgb, noting that
+  picking the best of 17 inflates the gain. (The `cnt_roll_7_std` line.)
+- **Whether the answer is believable:** the target transform is defensible,
+  but "the tree beats ridge" is not (the Exercise 4 line). Ridge is not
+  worth deploying over persistence (the Exercise 5 line).
